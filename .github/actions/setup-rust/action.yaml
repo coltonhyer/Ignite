@@ -1,0 +1,17 @@
+name: "Setup Rust"
+description: "Install Rust toolchain with optional components and enable dependency caching"
+
+inputs:
+  components:
+    description: "Comma-separated list of components (e.g., clippy, rustfmt)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: ${{ inputs.components }}
+
+    - uses: Swatinem/rust-cache@v2

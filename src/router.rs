@@ -38,6 +38,5 @@ mod tests {
 
         let _router = create_router(pool);
         // If we reached here without panicking, the router creation was successful
-        assert!(true);
     }
 }

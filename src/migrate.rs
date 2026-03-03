@@ -4,12 +4,11 @@ use tracing::info;
 /// Runs all pending migrations in the migrations directory.
 ///
 /// This is idempotent and safe to run on every boot.
+#[allow(dead_code)]
 pub async fn run_migrations(pool: &SqlitePool) -> anyhow::Result<()> {
     info!("Starting database migrations...");
 
-    sqlx::migrate!("./migrations")
-        .run(pool)
-        .await?;
+    sqlx::migrate!("./migrations").run(pool).await?;
 
     info!("Database migrations completed successfully.");
 

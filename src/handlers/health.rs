@@ -6,8 +6,8 @@ use crate::error::AppError;
 
 pub async fn health_check(State(pool): State<SqlitePool>) -> Result<impl IntoResponse, AppError> {
     // Attempt to execute a simple query to verify database connectivity
-    // Using `query` instead of `query!` to avoid sqlx checking at compile time without DB
-    match sqlx::query("SELECT 1 as is_alive").fetch_one(&pool).await {
+
+    match sqlx::query!("SELECT 1 as is_alive").fetch_one(&pool).await {
         Ok(_) => Ok((
             StatusCode::OK,
             Json(json!({ "status": "ok", "db": "connected" })),

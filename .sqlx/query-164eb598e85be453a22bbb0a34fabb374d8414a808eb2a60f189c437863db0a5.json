@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT 1 as is_alive",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_alive",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "164eb598e85be453a22bbb0a34fabb374d8414a808eb2a60f189c437863db0a5"
+}

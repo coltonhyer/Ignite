@@ -2,26 +2,24 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 use sqlx::SqlitePool;
 
-pub async fn health_check(State(pool): State<SqlitePool>) -> impl IntoResponse {
+use crate::error::AppError;
+
+pub async fn health_check(State(pool): State<SqlitePool>) -> Result<impl IntoResponse, AppError> {
     // Attempt to execute a simple query to verify database connectivity
     // Using `query` instead of `query!` to avoid sqlx checking at compile time without DB
     match sqlx::query("SELECT 1 as is_alive").fetch_one(&pool).await {
-        Ok(_) => (
+        Ok(_) => Ok((
             StatusCode::OK,
             Json(json!({ "status": "ok", "db": "connected" })),
-        ),
-        Err(_) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({ "status": "error", "db": "disconnected" })),
-        ),
+        )),
+        Err(_) => Err(AppError::ServiceUnavailable),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::Request;
-    use axum::{body::Body, routing::get, Router};
+    use axum::{body::Body, http::Request, routing::get, Router};
     use sqlx::sqlite::SqlitePoolOptions;
     use tower::ServiceExt; // for `oneshot`
 

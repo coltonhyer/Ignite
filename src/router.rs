@@ -15,7 +15,7 @@ use tower_http::{
 pub fn create_router(pool: SqlitePool) -> Router {
     Router::new()
         // Temporary health check route to verify server is running
-        .route("/health", get(|| async { "OK" }))
+        .route("/health", get(crate::handlers::health::health_check))
         // Middleware is applied from bottom to top
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http().on_body_chunk(()))

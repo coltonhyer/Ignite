@@ -18,7 +18,7 @@ pub fn create_router(pool: SqlitePool) -> Router {
         .route("/health", get(|| async { "OK" }))
         // Middleware is applied from bottom to top
         .layer(CorsLayer::permissive())
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().on_body_chunk(()))
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         // Wire the SqlitePool into Axum State
         .with_state(pool)

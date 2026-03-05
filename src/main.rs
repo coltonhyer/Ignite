@@ -1,4 +1,6 @@
 mod db;
+mod error;
+mod handlers;
 mod migrate;
 mod router;
 

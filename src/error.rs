@@ -7,11 +7,11 @@ use serde_json::json;
 
 fn sanitize_html(input: &str) -> String {
     input
-        .replace('&', "%26")
-        .replace('<', "%3C")
-        .replace('>', "%3E")
-        .replace('"', "%22")
-        .replace('\'', "%27")
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
 }
 
 #[derive(Debug)]
@@ -119,7 +119,7 @@ mod tests {
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
             body,
-            json!({ "error": "%3Cscript%3Ealert(%271%27)%3C/script%3E %26 %22more%22", "code": "INVALID_REQUEST" })
+            json!({ "error": "&lt;script&gt;alert(&#x27;1&#x27;)&lt;/script&gt; &amp; &quot;more&quot;", "code": "INVALID_REQUEST" })
         );
     }
 

@@ -5,12 +5,21 @@ use axum::{
 };
 use serde_json::json;
 
+fn sanitize_html(input: &str) -> String {
+    input
+        .replace('&', "%26")
+        .replace('<', "%3C")
+        .replace('>', "%3E")
+        .replace('"', "%22")
+        .replace('\'', "%27")
+}
+
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum AppError {
     PayloadTooLarge,
     InvalidRequest(String),
-    AlreadyBurned,
+    SecretNotFound,
     NotFound,
     Internal(anyhow::Error),
     ServiceUnavailable,
@@ -24,11 +33,15 @@ impl IntoResponse for AppError {
                 "Payload exceeds 10KB limit".to_string(),
                 "PAYLOAD_TOO_LARGE",
             ),
-            AppError::InvalidRequest(msg) => (StatusCode::BAD_REQUEST, msg, "INVALID_REQUEST"),
-            AppError::AlreadyBurned => (
-                StatusCode::GONE,
-                "This secret has already been viewed and destroyed".to_string(),
-                "ALREADY_BURNED",
+            AppError::InvalidRequest(msg) => (
+                StatusCode::BAD_REQUEST,
+                sanitize_html(&msg),
+                "INVALID_REQUEST",
+            ),
+            AppError::SecretNotFound => (
+                StatusCode::NOT_FOUND,
+                "Secret does not exist or has already been destroyed".to_string(),
+                "SECRET_NOT_FOUND",
             ),
             AppError::NotFound => (
                 StatusCode::NOT_FOUND,
@@ -100,13 +113,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_already_burned() {
-        let err = AppError::AlreadyBurned;
+    async fn test_invalid_request_sanitization() {
+        let err = AppError::InvalidRequest("<script>alert('1')</script> & \"more\"".to_string());
         let (status, body) = get_response_parts(err).await;
-        assert_eq!(status, StatusCode::GONE);
+        assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
             body,
-            json!({ "error": "This secret has already been viewed and destroyed", "code": "ALREADY_BURNED" })
+            json!({ "error": "%3Cscript%3Ealert(%271%27)%3C/script%3E %26 %22more%22", "code": "INVALID_REQUEST" })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_secret_not_found() {
+        let err = AppError::SecretNotFound;
+        let (status, body) = get_response_parts(err).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(
+            body,
+            json!({ "error": "Secret does not exist or has already been destroyed", "code": "SECRET_NOT_FOUND" })
         );
     }
 

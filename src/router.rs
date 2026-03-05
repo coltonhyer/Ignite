@@ -1,4 +1,7 @@
-use axum::{routing::get, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use sqlx::SqlitePool;
 use tower_http::{
     cors::CorsLayer,
@@ -16,6 +19,8 @@ pub fn create_router(pool: SqlitePool) -> Router {
     Router::new()
         // Temporary health check route to verify server is running
         .route("/health", get(crate::handlers::health::health_check))
+        // API routes
+        .route("/api/secrets", post(crate::handlers::create::create_secret))
         // Middleware is applied from bottom to top
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http().on_body_chunk(()))

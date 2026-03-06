@@ -1,0 +1,38 @@
+--- src/handlers/read.rs
++++ src/handlers/read.rs
+@@ -4,12 +4,12 @@
+     Json,
+ };
+ use base64::{engine::general_purpose::STANDARD, Engine};
+-use serde::Serialize;
++use serde::{Deserialize, Serialize};
+ use sqlx::SqlitePool;
+ use tracing::info;
+ use uuid::Uuid;
+
+-#[derive(Serialize)]
++#[derive(Serialize, Deserialize)]
+ pub struct ReadSecretResponse {
+     pub ciphertext: String,
+     pub nonce: String,
+@@ -155,16 +155,10 @@
+         assert_eq!(response.status(), StatusCode::OK);
+
+         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+-        let json_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+-
+-        assert_eq!(
+-            json_body.get("ciphertext").unwrap().as_str().unwrap(),
+-            STANDARD.encode(raw_ciphertext)
+-        );
+-        assert_eq!(
+-            json_body.get("nonce").unwrap().as_str().unwrap(),
+-            STANDARD.encode(raw_nonce)
+-        );
++        let json_body: ReadSecretResponse = serde_json::from_slice(&body).unwrap();
++
++        assert_eq!(json_body.ciphertext, STANDARD.encode(raw_ciphertext));
++        assert_eq!(json_body.nonce, STANDARD.encode(raw_nonce));
+
+         // Second read - should return 404 NOT FOUND (SecretNotFound)
+         let response_second = router

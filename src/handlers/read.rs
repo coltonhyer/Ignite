@@ -6,12 +6,12 @@ use axum::{
     Json,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tracing::info;
 use uuid::Uuid;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ReadSecretResponse {
     pub ciphertext: String,
     pub nonce: String,
@@ -146,16 +146,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let json_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let json_body: ReadSecretResponse = serde_json::from_slice(&body).unwrap();
 
-        assert_eq!(
-            json_body.get("ciphertext").unwrap().as_str().unwrap(),
-            STANDARD.encode(raw_ciphertext)
-        );
-        assert_eq!(
-            json_body.get("nonce").unwrap().as_str().unwrap(),
-            STANDARD.encode(raw_nonce)
-        );
+        assert_eq!(json_body.ciphertext, STANDARD.encode(raw_ciphertext));
+        assert_eq!(json_body.nonce, STANDARD.encode(raw_nonce));
 
         // Second read - should return 404 NOT FOUND (SecretNotFound)
         let response_second = router
@@ -190,5 +184,40 @@ mod tests {
 
         // InvalidRequest maps to BAD_REQUEST (400)
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_read_secret_expired() {
+        let pool = setup_db().await;
+        let router = app(pool.clone());
+
+        let id = Uuid::new_v4().to_string();
+
+        // Insert a secret that expired 1 hour ago
+        sqlx::query(
+            r#"
+            INSERT INTO secrets (id, ciphertext, nonce, expires_at)
+            VALUES (?, ?, ?, datetime('now', '-1 hour'))
+            "#,
+        )
+        .bind(&id)
+        .bind(b"secret".as_slice())
+        .bind(b"nonce".as_slice())
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/secrets/{}", id))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

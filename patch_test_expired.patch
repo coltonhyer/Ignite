@@ -1,0 +1,33 @@
+--- src/handlers/read.rs
++++ src/handlers/read.rs
+@@ -170,4 +170,30 @@
+         // InvalidRequest maps to BAD_REQUEST (400)
+         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+     }
++
++    #[tokio::test]
++    async fn test_read_secret_expired() {
++        let pool = setup_db().await;
++        let router = app(pool.clone());
++
++        let id = Uuid::new_v4().to_string();
++
++        // Insert a secret that expired 1 hour ago
++        sqlx::query(
++            r#"
++            INSERT INTO secrets (id, ciphertext, nonce, expires_at)
++            VALUES (?, ?, ?, datetime('now', '-1 hour'))
++            "#,
++        )
++        .bind(&id)
++        .bind(b"secret".as_slice())
++        .bind(b"nonce".as_slice())
++        .execute(&pool)
++        .await
++        .unwrap();
++
++        let response = router.oneshot(Request::builder().method("GET").uri(format!("/api/secrets/{}", id)).body(axum::body::Body::empty()).unwrap()).await.unwrap();
++
++        assert_eq!(response.status(), StatusCode::NOT_FOUND);
++    }
+ }

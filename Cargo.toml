@@ -35,7 +35,6 @@ tower_governor = "0.4"
 # Graceful shutdown
 tokio-util = "0.7"
 tempfile = "3.26.0"
-sqlx-cli = { version = "0.8.6", features = ["sqlite"] }
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json"] }

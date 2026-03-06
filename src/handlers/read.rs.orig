@@ -38,7 +38,7 @@ pub async fn read_secret(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+    .map_err(|e: sqlx::Error| AppError::Internal(anyhow::anyhow!(e)))?;
 
     // 3. Check if a row was returned
     match result {
@@ -71,8 +71,8 @@ pub async fn read_secret(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::to_bytes, routing::get, Router};
     use axum::http::Request;
+    use axum::{body::to_bytes, routing::get, Router};
     use base64::{engine::general_purpose::STANDARD, Engine};
     use sqlx::sqlite::SqlitePoolOptions;
     use tower::ServiceExt;
@@ -101,7 +101,7 @@ mod tests {
 
     fn app(pool: SqlitePool) -> Router {
         Router::new()
-            .route("/api/secrets/:id", get(read_secret))
+            .route("/api/secrets/{id}", get(read_secret))
             .with_state(pool)
     }
 
@@ -131,7 +131,8 @@ mod tests {
         .unwrap();
 
         // First read - should succeed and return 200 OK
-        let response = router.clone()
+        let response = router
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("GET")
@@ -147,8 +148,14 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let json_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-        assert_eq!(json_body.get("ciphertext").unwrap().as_str().unwrap(), STANDARD.encode(raw_ciphertext));
-        assert_eq!(json_body.get("nonce").unwrap().as_str().unwrap(), STANDARD.encode(raw_nonce));
+        assert_eq!(
+            json_body.get("ciphertext").unwrap().as_str().unwrap(),
+            STANDARD.encode(raw_ciphertext)
+        );
+        assert_eq!(
+            json_body.get("nonce").unwrap().as_str().unwrap(),
+            STANDARD.encode(raw_nonce)
+        );
 
         // Second read - should return 404 NOT FOUND (SecretNotFound)
         let response_second = router

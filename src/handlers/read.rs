@@ -84,13 +84,13 @@ mod tests {
             .expect("Failed to connect to in-memory database");
 
         sqlx::query(
-            "CREATE TABLE secrets (
+            "CREATE TABLE IF NOT EXISTS secrets (
                 id TEXT PRIMARY KEY NOT NULL,
                 ciphertext BLOB NOT NULL,
                 nonce BLOB NOT NULL,
                 expires_at TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )",
+            )"
         )
         .execute(&pool)
         .await
@@ -117,15 +117,15 @@ mod tests {
         let nonce_slice = raw_nonce.as_slice();
 
         // Insert a secret that expires in 1 hour
-        sqlx::query(
+        sqlx::query!(
             r#"
             INSERT INTO secrets (id, ciphertext, nonce, expires_at)
             VALUES (?, ?, ?, datetime('now', '+1 hour'))
             "#,
+            id,
+            ciphertext_slice,
+            nonce_slice
         )
-        .bind(&id)
-        .bind(ciphertext_slice)
-        .bind(nonce_slice)
         .execute(&pool)
         .await
         .unwrap();
@@ -194,15 +194,17 @@ mod tests {
         let id = Uuid::new_v4().to_string();
 
         // Insert a secret that expired 1 hour ago
-        sqlx::query(
+        let secret_slice = b"secret".as_slice();
+        let nonce_slice = b"nonce".as_slice();
+        sqlx::query!(
             r#"
             INSERT INTO secrets (id, ciphertext, nonce, expires_at)
             VALUES (?, ?, ?, datetime('now', '-1 hour'))
             "#,
+            id,
+            secret_slice,
+            nonce_slice
         )
-        .bind(&id)
-        .bind(b"secret".as_slice())
-        .bind(b"nonce".as_slice())
         .execute(&pool)
         .await
         .unwrap();

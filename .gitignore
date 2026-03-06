@@ -21,3 +21,7 @@ ignite.db*
 *.db
 *.db-shm
 *.db-wal
+
+# Backup and patch files
+*.orig
+*.patch

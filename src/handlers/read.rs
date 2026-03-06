@@ -90,7 +90,7 @@ mod tests {
                 nonce BLOB NOT NULL,
                 expires_at TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )"
+            )",
         )
         .execute(&pool)
         .await

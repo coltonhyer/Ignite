@@ -79,20 +79,24 @@ export async function encrypt(plaintext) {
  * @returns {Promise<string>} The decrypted plaintext string.
  */
 export async function decrypt(ciphertextB64, nonceB64, key) {
-    const ciphertext = base64ToBuffer(ciphertextB64);
-    const nonce = base64ToBuffer(nonceB64);
+    try {
+        const ciphertext = base64ToBuffer(ciphertextB64);
+        const nonce = base64ToBuffer(nonceB64);
 
-    const decryptedBuffer = await crypto.subtle.decrypt(
-        {
-            name: "AES-GCM",
-            iv: nonce
-        },
-        key,
-        ciphertext
-    );
+        const decryptedBuffer = await crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv: nonce
+            },
+            key,
+            ciphertext
+        );
 
-    const decoder = new TextDecoder();
-    return decoder.decode(decryptedBuffer);
+        const decoder = new TextDecoder();
+        return decoder.decode(decryptedBuffer);
+    } catch (err) {
+        throw new Error("Decryption failed. The key or ciphertext may be invalid.");
+    }
 }
 
 /**

@@ -47,3 +47,34 @@ test('key export and import round-trip', async () => {
     const decryptedText = await decrypt(ciphertext, nonce, importedKey);
     assert.strictEqual(decryptedText, originalText, "Decrypted text with imported key should match original");
 });
+
+test('failed decryption throws a clear error', async () => {
+    const { ciphertext, nonce, key } = await encrypt("Secret data");
+
+    // Test 1: Wrong key
+    const wrongKey = await importKey(await exportKey(key));
+    // Wait, the above makes the SAME key, let's generate a new one
+    const newKey = await crypto.subtle.generateKey(
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+    );
+
+    await assert.rejects(
+        async () => { await decrypt(ciphertext, nonce, newKey) },
+        { message: "Decryption failed. The key or ciphertext may be invalid." }
+    );
+
+    // Test 2: Modified ciphertext (invalid padding/MAC)
+    const modifiedCiphertext = ciphertext.substring(0, ciphertext.length - 4) + "AAAA";
+    await assert.rejects(
+        async () => { await decrypt(modifiedCiphertext, nonce, key) },
+        { message: "Decryption failed. The key or ciphertext may be invalid." }
+    );
+
+    // Test 3: Invalid base64
+    await assert.rejects(
+        async () => { await decrypt("not-base64!", nonce, key) },
+        { message: "Decryption failed. The key or ciphertext may be invalid." }
+    );
+});

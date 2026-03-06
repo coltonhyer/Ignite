@@ -38,7 +38,7 @@ pub async fn read_secret(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+    .map_err(|e: sqlx::Error| AppError::Internal(anyhow::anyhow!(e)))?;
 
     // 3. Check if a row was returned
     match result {

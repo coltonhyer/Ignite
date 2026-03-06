@@ -121,7 +121,7 @@ mod tests {
             r#"
             INSERT INTO secrets (id, ciphertext, nonce, expires_at)
             VALUES (?, ?, ?, datetime('now', '+1 hour'))
-            "#
+            "#,
         )
         .bind(&id)
         .bind(ciphertext_slice)

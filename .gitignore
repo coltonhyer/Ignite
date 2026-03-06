@@ -25,3 +25,4 @@ ignite.db*
 # Backup and patch files
 *.orig
 *.patch
+*.rej

@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use sqlx::SqlitePool;
@@ -21,7 +21,10 @@ pub fn create_router(pool: SqlitePool) -> Router {
         .route("/health", get(crate::handlers::health::health_check))
         // API routes
         .route("/api/secrets", post(crate::handlers::create::create_secret))
-        .route("/api/secrets/{id}", get(crate::handlers::read::read_secret))
+        .route(
+            "/api/secrets/{id}",
+            delete(crate::handlers::read::read_secret),
+        )
         // Middleware is applied from bottom to top
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http().on_body_chunk(()))

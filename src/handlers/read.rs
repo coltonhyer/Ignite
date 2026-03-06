@@ -72,7 +72,7 @@ pub async fn read_secret(
 mod tests {
     use super::*;
     use axum::http::Request;
-    use axum::{body::to_bytes, routing::get, Router};
+    use axum::{body::to_bytes, routing::delete, Router};
     use base64::{engine::general_purpose::STANDARD, Engine};
     use sqlx::sqlite::SqlitePoolOptions;
     use tower::ServiceExt;
@@ -101,7 +101,7 @@ mod tests {
 
     fn app(pool: SqlitePool) -> Router {
         Router::new()
-            .route("/api/secrets/{id}", get(read_secret))
+            .route("/api/secrets/{id}", delete(read_secret))
             .with_state(pool)
     }
 
@@ -135,7 +135,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .method("GET")
+                    .method("DELETE")
                     .uri(format!("/api/secrets/{}", id))
                     .body(axum::body::Body::empty())
                     .unwrap(),
@@ -155,7 +155,7 @@ mod tests {
         let response_second = router
             .oneshot(
                 Request::builder()
-                    .method("GET")
+                    .method("DELETE")
                     .uri(format!("/api/secrets/{}", id))
                     .body(axum::body::Body::empty())
                     .unwrap(),
@@ -174,7 +174,7 @@ mod tests {
         let response = router
             .oneshot(
                 Request::builder()
-                    .method("GET")
+                    .method("DELETE")
                     .uri("/api/secrets/invalid-uuid-format")
                     .body(axum::body::Body::empty())
                     .unwrap(),
@@ -212,7 +212,7 @@ mod tests {
         let response = router
             .oneshot(
                 Request::builder()
-                    .method("GET")
+                    .method("DELETE")
                     .uri(format!("/api/secrets/{}", id))
                     .body(axum::body::Body::empty())
                     .unwrap(),

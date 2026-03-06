@@ -13,9 +13,9 @@ function runTests() {
   assert.deepEqual(parsed1, { id: 'abc-123', key: 'keydata' }, 'parseShareUrl should extract id and key correctly');
 
   // Test 3: key with special base64url characters
-  const specialKeyUrl = buildShareUrl('uuid-456', 'aBcDe_Fg-HiJ+Kl/Mn');
+  const specialKeyUrl = buildShareUrl('uuid-456', 'aBcDe_Fg-HiJ-Kl_Mn');
   const parsed2 = parseShareUrl(specialKeyUrl);
-  assert.deepEqual(parsed2, { id: 'uuid-456', key: 'aBcDe_Fg-HiJ+Kl/Mn' }, 'parseShareUrl should preserve base64url characters');
+  assert.deepEqual(parsed2, { id: 'uuid-456', key: 'aBcDe_Fg-HiJ-Kl_Mn' }, 'parseShareUrl should preserve base64url characters');
 
   // Test 4: parseShareUrl with absolute URL
   const parsed3 = parseShareUrl('https://example.com/s/789-xyz#someKeyData');

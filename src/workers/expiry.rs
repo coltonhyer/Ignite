@@ -43,6 +43,7 @@ pub async fn spawn_expiry_worker(pool: SqlitePool, cancel: CancellationToken) {
 mod tests {
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::Row;
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -75,12 +76,12 @@ mod tests {
         let data1 = b"data1".to_vec();
         let nonce1 = b"nonce1".to_vec();
         // Insert a secret that expires in the past
-        sqlx::query!(
+        sqlx::query(
             "INSERT INTO secrets (id, ciphertext, nonce, expires_at) VALUES (?, ?, ?, datetime('now', '-1 day'))",
-            "1",
-            data1,
-            nonce1
         )
+        .bind("1")
+        .bind(data1)
+        .bind(nonce1)
         .execute(&pool)
         .await
         .unwrap();
@@ -88,21 +89,22 @@ mod tests {
         let data2 = b"data2".to_vec();
         let nonce2 = b"nonce2".to_vec();
         // Insert a secret that expires in the future
-        sqlx::query!(
+        sqlx::query(
             "INSERT INTO secrets (id, ciphertext, nonce, expires_at) VALUES (?, ?, ?, datetime('now', '+1 day'))",
-            "2",
-            data2,
-            nonce2
         )
+        .bind("2")
+        .bind(data2)
+        .bind(nonce2)
         .execute(&pool)
         .await
         .unwrap();
 
         // Verify there are 2 secrets initially
-        let count: i64 = sqlx::query_scalar!("SELECT count(*) FROM secrets")
+        let count_row = sqlx::query("SELECT count(*) FROM secrets")
             .fetch_one(&pool)
             .await
             .unwrap();
+        let count: i64 = count_row.get(0);
         assert_eq!(count, 2);
 
         let cancel = CancellationToken::new();
@@ -123,17 +125,19 @@ mod tests {
         let _ = worker_handle.await;
 
         // Verify only 1 secret is left (the one in the future)
-        let count: i64 = sqlx::query_scalar!("SELECT count(*) FROM secrets")
+        let count_row = sqlx::query("SELECT count(*) FROM secrets")
             .fetch_one(&pool)
             .await
             .unwrap();
+        let count: i64 = count_row.get(0);
         assert_eq!(count, 1);
 
         // Verify the remaining secret is the one we expect
-        let remaining_id: String = sqlx::query_scalar!("SELECT id FROM secrets")
+        let remaining_id_row = sqlx::query("SELECT id FROM secrets")
             .fetch_one(&pool)
             .await
             .unwrap();
+        let remaining_id: String = remaining_id_row.get(0);
         assert_eq!(remaining_id, "2");
     }
 }

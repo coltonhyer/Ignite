@@ -1,39 +1,11 @@
 --- read.rs
 +++ read.rs
-@@ -118,15 +118,13 @@
-         let ciphertext_slice = raw_ciphertext.as_slice();
-         let nonce_slice = raw_nonce.as_slice();
+@@ -87,7 +87,7 @@
+             .await
+             .expect("Failed to connect to in-memory database");
 
-         // Insert a secret that expires in 1 hour
--        let secret_slice = b"secret".as_slice();
--        let nonce_slice = b"nonce".as_slice();
-         sqlx::query!(
-             r#"
-             INSERT INTO secrets (id, ciphertext, nonce, expires_at)
-             VALUES (?, ?, ?, datetime('now', '+1 hour'))
-             "#,
-+            id,
-+            ciphertext_slice,
-+            nonce_slice
-         )
--        .bind(&id)
--        .bind(ciphertext_slice)
--        .bind(nonce_slice)
---- /dev/null
-+++ /dev/null
-@@ -193,13 +191,13 @@
-         let secret_slice = b"secret".as_slice();
-         let nonce_slice = b"nonce".as_slice();
-         sqlx::query!(
-             r#"
-             INSERT INTO secrets (id, ciphertext, nonce, expires_at)
-             VALUES (?, ?, ?, datetime('now', '-1 hour'))
-             "#,
-+            id,
-+            secret_slice,
-+            nonce_slice
-         )
--        .bind(&id)
--        .bind(b"secret".as_slice())
--        .bind(b"nonce".as_slice())
-         .execute(&pool)
+-        sqlx::query!(
++        sqlx::query(
+             "CREATE TABLE IF NOT EXISTS secrets (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 ciphertext BLOB NOT NULL,

@@ -1,9 +1,4 @@
-mod db;
-mod error;
-mod handlers;
-mod migrate;
-mod router;
-mod workers;
+use ignite::{db, migrate, router, workers};
 
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};

@@ -19,7 +19,7 @@ pub struct CreateSecretRequest {
     pub ttl_seconds: Option<i64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct CreateSecretResponse {
     pub id: String,
     pub expires_at: String,

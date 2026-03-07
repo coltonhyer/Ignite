@@ -8,13 +8,13 @@ use ignite::{
     router::create_router,
 };
 use serde_json::json;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use tokio::time::{sleep, Duration};
 use tower::ServiceExt;
 use uuid::Uuid;
 
 // Helper to setup a fresh database and router for each test
-async fn setup_app() -> axum::Router {
+async fn setup_app() -> (axum::Router, SqlitePool) {
     let pool = SqlitePoolOptions::new()
         .connect("sqlite::memory:")
         .await
@@ -25,12 +25,13 @@ async fn setup_app() -> axum::Router {
         .await
         .expect("Failed to run migrations");
 
-    create_router(pool)
+    let router = create_router(pool.clone());
+    (router, pool)
 }
 
 #[tokio::test]
 async fn test_case_1_happy_path() {
-    let app = setup_app().await;
+    let (app, _) = setup_app().await;
 
     // Create a secret
     let ciphertext = STANDARD.encode(b"secret data");
@@ -84,7 +85,7 @@ async fn test_case_1_happy_path() {
 
 #[tokio::test]
 async fn test_case_2_never_existed() {
-    let app = setup_app().await;
+    let (app, _) = setup_app().await;
     let fake_id = Uuid::new_v4().to_string();
 
     let req = Request::builder()
@@ -99,7 +100,7 @@ async fn test_case_2_never_existed() {
 
 #[tokio::test]
 async fn test_case_3_invalid_format() {
-    let app = setup_app().await;
+    let (app, _) = setup_app().await;
 
     let req = Request::builder()
         .method("DELETE")
@@ -113,13 +114,7 @@ async fn test_case_3_invalid_format() {
 
 #[tokio::test]
 async fn test_case_4_expired_secret() {
-    // Instead of using POST (which restricts minimum TTL), we'll do an insert like the handlers do.
-    let pool = SqlitePoolOptions::new()
-        .connect("sqlite::memory:")
-        .await
-        .expect("Failed to connect to in-memory database");
-    ignite::migrate::run_migrations(&pool).await.unwrap();
-    let app = create_router(pool.clone());
+    let (app, pool) = setup_app().await;
 
     let id = Uuid::new_v4().to_string();
     let ciphertext = b"secret".to_vec();
@@ -156,7 +151,7 @@ async fn test_case_4_expired_secret() {
 
 #[tokio::test]
 async fn test_case_5_payload_validation() {
-    let app = setup_app().await;
+    let (app, _) = setup_app().await;
 
     let large_data = vec![0u8; 10 * 1024 + 1]; // > 10KB
     let ciphertext = STANDARD.encode(&large_data);
@@ -180,7 +175,7 @@ async fn test_case_5_payload_validation() {
 
 #[tokio::test]
 async fn test_case_6_ttl_validation() {
-    let app = setup_app().await;
+    let (app, _) = setup_app().await;
 
     let ciphertext = STANDARD.encode(b"secret data");
     let nonce = STANDARD.encode(b"nonce");

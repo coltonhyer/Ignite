@@ -16,8 +16,10 @@ use tokio::time::{sleep, Duration};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-const TEST_ADDR: ConnectInfo<SocketAddr> =
-    ConnectInfo(SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), 0));
+const TEST_ADDR: ConnectInfo<SocketAddr> = ConnectInfo(SocketAddr::new(
+    std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+    0,
+));
 
 /// Build a POST /api/secrets request with the given IP (via x-forwarded-for).
 fn create_secret_request(ip: &str, ciphertext: &str, nonce: &str) -> Request<Body> {

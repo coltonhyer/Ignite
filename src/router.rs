@@ -7,9 +7,8 @@ use axum::{
 };
 use sqlx::SqlitePool;
 use tower_governor::{
-    governor::GovernorConfigBuilder,
-    key_extractor::SmartIpKeyExtractor,
-    GovernorError, GovernorLayer,
+    governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor, GovernorError,
+    GovernorLayer,
 };
 use tower_http::{
     cors::CorsLayer,
@@ -21,9 +20,10 @@ use crate::error::AppError;
 
 fn governor_error_handler(error: GovernorError) -> Response<Body> {
     match error {
-        GovernorError::TooManyRequests { wait_time, .. } => {
-            AppError::RateLimited { retry_after_secs: wait_time }.into_response()
+        GovernorError::TooManyRequests { wait_time, .. } => AppError::RateLimited {
+            retry_after_secs: wait_time,
         }
+        .into_response(),
         _ => AppError::Internal(anyhow::anyhow!(error.to_string())).into_response(),
     }
 }
@@ -56,20 +56,14 @@ pub fn create_router(pool: SqlitePool) -> Router {
 
     let create_routes = Router::new()
         .route("/api/secrets", post(crate::handlers::create::create_secret))
-        .layer(
-            GovernorLayer::new(create_governor)
-                .error_handler(governor_error_handler),
-        );
+        .layer(GovernorLayer::new(create_governor).error_handler(governor_error_handler));
 
     let burn_routes = Router::new()
         .route(
             "/api/secrets/{id}",
             delete(crate::handlers::read::read_secret),
         )
-        .layer(
-            GovernorLayer::new(burn_governor)
-                .error_handler(governor_error_handler),
-        );
+        .layer(GovernorLayer::new(burn_governor).error_handler(governor_error_handler));
 
     Router::new()
         .route("/health", get(crate::handlers::health::health_check))

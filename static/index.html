@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ignite - Burn After Reading</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body class="bg-zinc-900 text-gray-200 min-h-screen flex flex-col font-sans">
+    <header class="bg-zinc-950 border-b border-zinc-800 p-4">
+        <div class="max-w-3xl mx-auto flex items-center justify-center">
+            <h1 class="text-3xl font-bold text-orange-500 tracking-tight flex items-center gap-2 cursor-pointer" onclick="window.location.href='/'">
+                <span>🔥</span> Ignite
+            </h1>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-3xl w-full mx-auto p-4 md:p-8 flex flex-col" id="app-container">
+        <!-- Views will be injected here by app.js -->
+        <div id="view-create" class="hidden flex-col gap-6">
+            <div class="space-y-2">
+                <label for="secret-text" class="block text-sm font-medium text-zinc-400">Your secret message</label>
+                <textarea id="secret-text" rows="8" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-4 text-gray-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none" placeholder="Enter the text you want to share securely..."></textarea>
+                <p class="text-xs text-zinc-500 text-right"><span id="char-count">0</span> / 10000 bytes</p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                <div class="space-y-1 w-full sm:w-auto">
+                    <label for="ttl-select" class="block text-sm font-medium text-zinc-400">Self-destructs in</label>
+                    <select id="ttl-select" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent appearance-none">
+                        <option value="300">5 minutes</option>
+                        <option value="900">15 minutes</option>
+                        <option value="3600" selected>1 hour</option>
+                        <option value="86400">24 hours</option>
+                    </select>
+                </div>
+
+                <button id="btn-create" class="w-full sm:w-auto mt-4 sm:mt-0 bg-orange-600 hover:bg-orange-500 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
+                    <span>Create Link</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div id="create-error" class="hidden text-red-400 text-sm p-3 bg-red-900/20 border border-red-900/50 rounded-lg"></div>
+        </div>
+
+        <div id="view-share" class="hidden flex-col gap-6 text-center py-8">
+            <h2 class="text-2xl font-semibold text-white">Secret Created!</h2>
+            <p class="text-zinc-400">Share this link carefully. It will work only once and then be destroyed forever.</p>
+            
+            <div class="flex items-center gap-2 mt-4 bg-zinc-800 border border-zinc-700 rounded-lg p-2">
+                <input type="text" id="share-link" class="w-full bg-transparent border-none text-gray-100 focus:outline-none px-2 select-all" readonly>
+                <button id="btn-copy" class="bg-zinc-700 hover:bg-zinc-600 text-white p-2 rounded transition-colors" title="Copy to clipboard">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="mt-8">
+                <button class="text-orange-500 hover:text-orange-400 text-sm font-medium" onclick="window.location.href='/'">Create another secret</button>
+            </div>
+        </div>
+
+        <div id="view-read-prompt" class="hidden flex-col gap-6 text-center py-12">
+            <div class="mx-auto w-16 h-16 bg-orange-900/30 rounded-full flex items-center justify-center mb-4">
+                <span class="text-3xl">🔒</span>
+            </div>
+            <h2 class="text-2xl font-semibold text-white">Encrypted Message</h2>
+            <p class="text-zinc-400 max-w-md mx-auto">You have received a secure, single-use message. Once you view it, it will be permanently deleted from the server.</p>
+            
+            <button id="btn-reveal" class="mt-6 mx-auto bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 px-8 rounded-lg transition-colors duration-200">
+                Reveal Secret
+            </button>
+
+            <div id="read-error" class="hidden mt-4 text-red-400 text-sm p-3 bg-red-900/20 border border-red-900/50 rounded-lg max-w-md mx-auto"></div>
+        </div>
+
+        <div id="view-read-result" class="hidden flex-col gap-6">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-xl font-semibold text-orange-500">Secret Message</h2>
+                <span class="text-xs bg-red-900/40 text-red-400 px-2 py-1 rounded border border-red-900/60">Destroyed</span>
+            </div>
+            
+            <div class="bg-zinc-800 border border-zinc-700 rounded-lg p-6 relative">
+                <pre id="secret-content" class="text-gray-100 whitespace-pre-wrap font-sans text-base"></pre>
+            </div>
+            
+            <div class="text-center mt-8">
+                <button class="text-zinc-400 hover:text-zinc-300 text-sm font-medium" onclick="window.location.href='/'">Create your own secret</button>
+            </div>
+        </div>
+        
+        <div id="loading" class="hidden flex-col items-center justify-center py-20 gap-4">
+            <div class="w-8 h-8 border-4 border-zinc-700 border-t-orange-500 rounded-full animate-spin"></div>
+            <p class="text-zinc-400 animate-pulse" id="loading-text">Processing...</p>
+        </div>
+    </main>
+
+    <footer class="mt-auto py-6 text-center border-t border-zinc-800 text-zinc-600 text-sm">
+        <p>Ignite &mdash; Client-side encrypted, single-use secrets.</p>
+    </footer>
+
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>

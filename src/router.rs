@@ -24,7 +24,7 @@ fn governor_error_handler(error: GovernorError) -> Response<Body> {
         GovernorError::TooManyRequests { wait_time, .. } => {
             AppError::RateLimited { retry_after_secs: wait_time }.into_response()
         }
-        _ => AppError::Internal(anyhow::anyhow!("rate limiter key extraction failed")).into_response(),
+        _ => AppError::Internal(anyhow::anyhow!(error.to_string())).into_response(),
     }
 }
 

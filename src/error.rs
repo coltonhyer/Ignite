@@ -1,5 +1,5 @@
 use axum::{
-    http::StatusCode,
+    http::{header, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -21,6 +21,7 @@ pub enum AppError {
     InvalidRequest(String),
     SecretNotFound,
     NotFound,
+    RateLimited { retry_after_secs: u64 },
     Internal(anyhow::Error),
     ServiceUnavailable,
 }
@@ -55,6 +56,14 @@ impl IntoResponse for AppError {
                     "Internal server error".to_string(),
                     "INTERNAL",
                 )
+            }
+            AppError::RateLimited { retry_after_secs } => {
+                return (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    [(header::RETRY_AFTER, retry_after_secs.to_string())],
+                    Json(json!({ "error": "Rate limit exceeded", "code": "RATE_LIMITED" })),
+                )
+                    .into_response();
             }
             // Keep the old response for ServiceUnavailable as required by health tests
             AppError::ServiceUnavailable => {
@@ -153,6 +162,31 @@ mod tests {
         assert_eq!(
             body,
             json!({ "error": "Internal server error", "code": "INTERNAL" })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_rate_limited() {
+        let err = AppError::RateLimited {
+            retry_after_secs: 42,
+        };
+        let response = err.into_response();
+        let status = response.status();
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json_body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(retry_after, "42");
+        assert_eq!(
+            json_body,
+            json!({ "error": "Rate limit exceeded", "code": "RATE_LIMITED" })
         );
     }
 

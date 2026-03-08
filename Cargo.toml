@@ -30,7 +30,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Rate limiting
-tower_governor = "0.4"
+tower_governor = "0.8"
 
 # Graceful shutdown
 tokio-util = "0.7"

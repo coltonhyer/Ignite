@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use ignite::{db, migrate, router, workers};
 
 use tokio_util::sync::CancellationToken;
@@ -70,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
         server_cancel_token.cancel();
     };
 
-    if let Err(e) = axum::serve(listener, app)
+    if let Err(e) = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(axum_shutdown)
         .await
     {

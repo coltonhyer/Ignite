@@ -13,6 +13,7 @@ use tower_governor::{
 use tower_http::{
     cors::CorsLayer,
     request_id::{MakeRequestUuid, SetRequestIdLayer},
+    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 
@@ -55,20 +56,20 @@ pub fn create_router(pool: SqlitePool) -> Router {
         .unwrap();
 
     let create_routes = Router::new()
-        .route("/api/secrets", post(crate::handlers::create::create_secret))
+        .route("/secrets", post(crate::handlers::create::create_secret))
         .layer(GovernorLayer::new(create_governor).error_handler(governor_error_handler));
 
     let burn_routes = Router::new()
-        .route(
-            "/api/secrets/{id}",
-            delete(crate::handlers::read::read_secret),
-        )
+        .route("/secrets/{id}", delete(crate::handlers::read::read_secret))
         .layer(GovernorLayer::new(burn_governor).error_handler(governor_error_handler));
+
+    let static_files =
+        ServeDir::new("static").not_found_service(ServeFile::new("static/index.html"));
 
     Router::new()
         .route("/health", get(crate::handlers::health::health_check))
-        .merge(create_routes)
-        .merge(burn_routes)
+        .nest("/api", create_routes.merge(burn_routes))
+        .fallback_service(static_files)
         // Middleware is applied from bottom to top
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http().on_body_chunk(()))

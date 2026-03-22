@@ -42,13 +42,23 @@ The decryption key lives in the URL fragment (`#`), which **browsers never send 
 
 ### Run
 
+**1. Start the Backend Server (Required)**
 ```bash
 git clone https://github.com/coltonhyer/ignite.git
 cd ignite
 cargo run
 ```
-
 Server starts at `http://localhost:3000` by default.
+
+**2. Launch the Client**
+Because the architecture is heavily isolated, you must build or launch your preferred client interface:
+
+* **Web Browser**: Run `dx build --release` inside the `frontend` directory, then navigate to `http://localhost:3000`.
+* **Native Desktop App**: Open a new terminal, navigate into the `frontend` directory, and run the macOS native binary:
+  ```bash
+  cd frontend
+  cargo run --bin frontend --features dioxus/desktop
+  ```
 
 ### Configuration
 

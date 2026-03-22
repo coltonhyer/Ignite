@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n        DELETE FROM secrets\n        WHERE id = ?1 AND expires_at > datetime('now')\n        RETURNING ciphertext, nonce\n        ",
+  "query": "\n            DELETE FROM secrets\n            WHERE id = ?1 AND expires_at > datetime('now')\n            RETURNING ciphertext, nonce\n            ",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "732fc9fdc979c0fce3ae3ec59d70ac6c5b1ba214de59579d1ad0d5f0fd9016f7"
+  "hash": "9d3451c2801a03b90c259b3febcd958be87cdf363349e8fbdb2d634eefbaf5f2"
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO secrets (id, ciphertext, nonce, expires_at)\n            VALUES (?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "a6dd48715a2f1716c7a98f24242e9c1fe89b0a17c6897998ab287069f8470b42"
+}

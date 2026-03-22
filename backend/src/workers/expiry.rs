@@ -1,11 +1,10 @@
-use sqlx::SqlitePool;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 const POLL_INTERVAL_SECS: u64 = 60;
 
-pub async fn spawn_expiry_worker(pool: SqlitePool, cancel: CancellationToken) {
+pub async fn spawn_expiry_worker(store: crate::store::SecretStore, cancel: CancellationToken) {
     info!("Starting TTL expiry background worker");
 
     let mut interval = tokio::time::interval(Duration::from_secs(POLL_INTERVAL_SECS));
@@ -17,17 +16,8 @@ pub async fn spawn_expiry_worker(pool: SqlitePool, cancel: CancellationToken) {
                 break;
             }
             _ = interval.tick() => {
-                match sqlx::query!(
-                    r#"
-                    DELETE FROM secrets
-                    WHERE expires_at < datetime('now')
-                    "#
-                )
-                .execute(&pool)
-                .await
-                {
-                    Ok(result) => {
-                        let rows_affected = result.rows_affected();
+                match store.purge_expired().await {
+                    Ok(rows_affected) => {
                         info!("Purged {} expired secrets", rows_affected);
                     }
                     Err(e) => {
@@ -44,6 +34,7 @@ mod tests {
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::Row;
+    use sqlx::SqlitePool;
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -113,7 +104,10 @@ mod tests {
         // Use a smaller poll interval for the test to run quickly
         // We override interval inside test scope if we could, but interval is hardcoded in the function.
         // Let's spawn the worker. It will immediately tick once.
-        let worker_handle = tokio::spawn(spawn_expiry_worker(pool.clone(), cancel_clone));
+        let worker_handle = tokio::spawn(spawn_expiry_worker(
+            crate::store::SecretStore::new(pool.clone()),
+            cancel_clone,
+        ));
 
         // Yield to let the worker run its first tick
         sleep(Duration::from_millis(100)).await;

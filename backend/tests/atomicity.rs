@@ -5,12 +5,10 @@ use axum::{
     extract::ConnectInfo,
     http::{Request, StatusCode},
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
-use ignite::{
-    handlers::{create::CreateSecretResponse, read::ReadSecretResponse},
-    router::create_router,
-};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use ignite::router::create_router;
 use serde_json::json;
+use shared::{CreateSecretResponse, ReadSecretResponse};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use tokio::time::{sleep, Duration};
 use tower::ServiceExt;
@@ -59,7 +57,7 @@ async fn setup_app() -> (axum::Router, SqlitePool) {
         .await
         .expect("Failed to run migrations");
 
-    let router = create_router(pool.clone());
+    let router = create_router(ignite::store::SecretStore::new(pool.clone()));
     (router, pool)
 }
 
@@ -68,8 +66,8 @@ async fn test_case_1_happy_path() {
     let (app, _) = setup_app().await;
 
     // Create a secret
-    let ciphertext = STANDARD.encode(b"secret data");
-    let nonce = STANDARD.encode(b"nonce");
+    let ciphertext = URL_SAFE_NO_PAD.encode(b"secret data");
+    let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
     let payload = json!({
         "ciphertext": ciphertext,
         "nonce": nonce,
@@ -117,7 +115,7 @@ async fn test_case_1_happy_path() {
         .unwrap();
 
     let read_again_res = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(read_again_res.status(), StatusCode::NOT_FOUND);
+    assert_eq!(read_again_res.status(), StatusCode::GONE);
 }
 
 #[tokio::test]
@@ -133,7 +131,7 @@ async fn test_case_2_never_existed() {
         .unwrap();
 
     let res = app.oneshot(req).await.unwrap();
-    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    assert_eq!(res.status(), StatusCode::GONE);
 }
 
 #[tokio::test]
@@ -186,7 +184,7 @@ async fn test_case_4_expired_secret() {
 
     let res = app.oneshot(req).await.unwrap();
     // Because it's expired, DELETE ... WHERE expires_at > datetime('now') returns 0 rows
-    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    assert_eq!(res.status(), StatusCode::GONE);
 }
 
 #[tokio::test]
@@ -194,8 +192,8 @@ async fn test_case_5_payload_validation() {
     let (app, _) = setup_app().await;
 
     let large_data = vec![0u8; 10 * 1024 + 1]; // > 10KB
-    let ciphertext = STANDARD.encode(&large_data);
-    let nonce = STANDARD.encode(b"nonce");
+    let ciphertext = URL_SAFE_NO_PAD.encode(&large_data);
+    let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
     let payload = json!({
         "ciphertext": ciphertext,
         "nonce": nonce,
@@ -218,8 +216,8 @@ async fn test_case_5_payload_validation() {
 async fn test_case_6_ttl_validation() {
     let (app, _) = setup_app().await;
 
-    let ciphertext = STANDARD.encode(b"secret data");
-    let nonce = STANDARD.encode(b"nonce");
+    let ciphertext = URL_SAFE_NO_PAD.encode(b"secret data");
+    let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
     let payload = json!({
         "ciphertext": ciphertext,
         "nonce": nonce,
@@ -242,8 +240,8 @@ async fn test_case_6_ttl_validation() {
 async fn test_case_7_rate_limit_post() {
     let (app, _) = setup_app().await;
 
-    let ciphertext = STANDARD.encode(b"secret data");
-    let nonce = STANDARD.encode(b"nonce");
+    let ciphertext = URL_SAFE_NO_PAD.encode(b"secret data");
+    let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
 
     // Send 10 requests (burst size) — all should succeed
     for _ in 0..10 {
@@ -285,8 +283,8 @@ async fn test_case_7_rate_limit_post() {
 async fn test_case_8_rate_limit_independent_ips() {
     let (app, _) = setup_app().await;
 
-    let ciphertext = STANDARD.encode(b"secret data");
-    let nonce = STANDARD.encode(b"nonce");
+    let ciphertext = URL_SAFE_NO_PAD.encode(b"secret data");
+    let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
 
     // Exhaust rate limit for IP 10.0.0.2
     for _ in 0..10 {

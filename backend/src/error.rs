@@ -40,7 +40,7 @@ impl IntoResponse for AppError {
                 "INVALID_REQUEST",
             ),
             AppError::SecretNotFound => (
-                StatusCode::NOT_FOUND,
+                StatusCode::GONE,
                 "Secret does not exist or has already been destroyed".to_string(),
                 "SECRET_NOT_FOUND",
             ),
@@ -136,7 +136,7 @@ mod tests {
     async fn test_secret_not_found() {
         let err = AppError::SecretNotFound;
         let (status, body) = get_response_parts(err).await;
-        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(status, StatusCode::GONE);
         assert_eq!(
             body,
             json!({ "error": "Secret does not exist or has already been destroyed", "code": "SECRET_NOT_FOUND" })

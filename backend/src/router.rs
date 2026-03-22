@@ -5,7 +5,6 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
-use sqlx::SqlitePool;
 use tower_governor::{
     governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor, GovernorError,
     GovernorLayer,
@@ -13,7 +12,6 @@ use tower_governor::{
 use tower_http::{
     cors::CorsLayer,
     request_id::{MakeRequestUuid, SetRequestIdLayer},
-    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 
@@ -36,7 +34,7 @@ fn governor_error_handler(error: GovernorError) -> Response<Body> {
 /// - Tracing (request/response logging)
 /// - CORS (permissive for local development)
 /// - Per-route rate limiting via tower_governor
-pub fn create_router(pool: SqlitePool) -> Router {
+pub fn create_router(store: crate::store::SecretStore) -> Router {
     // POST /api/secrets: 10 req/min (replenish 1 token every 6 seconds, burst 10)
     let create_governor = GovernorConfigBuilder::default()
         .key_extractor(SmartIpKeyExtractor)
@@ -63,19 +61,14 @@ pub fn create_router(pool: SqlitePool) -> Router {
         .route("/secrets/{id}", delete(crate::handlers::read::read_secret))
         .layer(GovernorLayer::new(burn_governor).error_handler(governor_error_handler));
 
-    let static_files =
-        ServeDir::new("static").not_found_service(ServeFile::new("static/index.html"));
-
     Router::new()
         .route("/health", get(crate::handlers::health::health_check))
         .nest("/api", create_routes.merge(burn_routes))
-        .fallback_service(static_files)
         // Middleware is applied from bottom to top
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http().on_body_chunk(()))
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
-        // Wire the SqlitePool into Axum State
-        .with_state(pool)
+        .with_state(store)
 }
 
 #[cfg(test)]
@@ -90,7 +83,7 @@ mod tests {
             .await
             .expect("Failed to connect to in-memory database");
 
-        let _router = create_router(pool);
+        let _router = create_router(crate::store::SecretStore::new(pool));
         // If we reached here without panicking, the router creation was successful
     }
 }

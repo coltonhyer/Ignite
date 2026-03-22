@@ -1,0 +1,10 @@
+[application]
+name = "frontend"
+default_platform = "web"
+out_dir = "dist"
+
+[web.dev.server]
+port = 8080
+
+[[web.proxy]]
+backend = "http://localhost:3000/api"

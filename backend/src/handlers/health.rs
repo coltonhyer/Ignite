@@ -1,13 +1,13 @@
+use crate::store::SecretStore;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
-use sqlx::SqlitePool;
 
 use crate::error::AppError;
 
-pub async fn health_check(State(pool): State<SqlitePool>) -> Result<impl IntoResponse, AppError> {
+pub async fn health_check(State(store): State<SecretStore>) -> Result<impl IntoResponse, AppError> {
     // Attempt to execute a simple query to verify database connectivity
 
-    match sqlx::query!("SELECT 1 as is_alive").fetch_one(&pool).await {
+    match store.is_alive().await {
         Ok(_) => Ok((
             StatusCode::OK,
             Json(json!({ "status": "ok", "db": "connected" })),
@@ -20,13 +20,13 @@ pub async fn health_check(State(pool): State<SqlitePool>) -> Result<impl IntoRes
 mod tests {
     use super::*;
     use axum::{body::Body, http::Request, routing::get, Router};
-    use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
     use tower::ServiceExt; // for `oneshot`
 
     async fn create_test_router(pool: SqlitePool) -> Router {
         Router::new()
             .route("/health", get(health_check))
-            .with_state(pool)
+            .with_state(crate::store::SecretStore::new(pool))
     }
 
     #[tokio::test]

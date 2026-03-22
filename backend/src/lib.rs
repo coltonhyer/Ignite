@@ -3,4 +3,5 @@ pub mod error;
 pub mod handlers;
 pub mod migrate;
 pub mod router;
+pub mod store;
 pub mod workers;

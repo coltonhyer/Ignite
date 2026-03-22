@@ -1,40 +1,26 @@
 use crate::error::AppError;
+use crate::store::SecretStore;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, Utc};
-use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 use tracing::info;
 use uuid::Uuid;
 
-const MAX_PAYLOAD_BYTES: usize = 10 * 1024; // 10KB
-const MIN_TTL_SECONDS: i64 = 300; // 5 minutes
-const MAX_TTL_SECONDS: i64 = 86400; // 24 hours
-const DEFAULT_TTL_SECONDS: i64 = 3600; // 1 hour
-
-#[derive(Deserialize)]
-pub struct CreateSecretRequest {
-    pub ciphertext: String,
-    pub nonce: String,
-    pub ttl_seconds: Option<i64>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct CreateSecretResponse {
-    pub id: String,
-    pub expires_at: String,
-}
+use shared::{
+    CreateSecretRequest, CreateSecretResponse, DEFAULT_TTL_SECONDS, MAX_PAYLOAD_BYTES,
+    MAX_TTL_SECONDS, MIN_TTL_SECONDS,
+};
 
 pub async fn create_secret(
-    State(pool): State<SqlitePool>,
+    State(store): State<SecretStore>,
     Json(payload): Json<CreateSecretRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // 1. Base64 decode ciphertext and nonce
-    let ciphertext = STANDARD.decode(&payload.ciphertext).map_err(|_| {
+    let ciphertext = URL_SAFE_NO_PAD.decode(&payload.ciphertext).map_err(|_| {
         AppError::InvalidRequest("Invalid base64 encoding for ciphertext".to_string())
     })?;
 
-    let nonce = STANDARD
+    let nonce = URL_SAFE_NO_PAD
         .decode(&payload.nonce)
         .map_err(|_| AppError::InvalidRequest("Invalid base64 encoding for nonce".to_string()))?;
 
@@ -57,26 +43,16 @@ pub async fn create_secret(
     let expires_at = (Utc::now() + Duration::seconds(ttl)).to_rfc3339();
 
     // 5. Insert into database
-    sqlx::query!(
-        r#"
-        INSERT INTO secrets (id, ciphertext, nonce, expires_at)
-        VALUES (?, ?, ?, ?)
-        "#,
-        id,
-        ciphertext,
-        nonce,
-        expires_at
-    )
-    .execute(&pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+    store
+        .create_secret(&id, &ciphertext, &nonce, &expires_at)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
 
     // 6. Log database schema write operation at INFO level (ignoring sensitive info)
     info!(
         action = "create_secret",
         id = %id,
         expires_at = %expires_at,
-        ciphertext_size = ciphertext.len(),
         "Secret created successfully"
     );
 
@@ -91,9 +67,10 @@ mod tests {
     use axum::body::Body;
     use axum::http::Request;
     use axum::{body::to_bytes, routing::post, Router};
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
     use serde_json::json;
     use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::SqlitePool;
     use tower::ServiceExt; // for `oneshot` and `ready`
 
     async fn setup_db() -> SqlitePool {
@@ -121,7 +98,7 @@ mod tests {
     fn app(pool: SqlitePool) -> Router {
         Router::new()
             .route("/api/secrets", post(create_secret))
-            .with_state(pool)
+            .with_state(crate::store::SecretStore::new(pool))
     }
 
     #[tokio::test]
@@ -129,8 +106,8 @@ mod tests {
         let pool = setup_db().await;
         let router = app(pool);
 
-        let ciphertext = STANDARD.encode(b"secret data");
-        let nonce = STANDARD.encode(b"nonce");
+        let ciphertext = URL_SAFE_NO_PAD.encode(b"secret data");
+        let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
         let payload = json!({
             "ciphertext": ciphertext,
             "nonce": nonce,
@@ -163,8 +140,8 @@ mod tests {
         let pool = setup_db().await;
         let router = app(pool);
 
-        let ciphertext = STANDARD.encode(b"secret data");
-        let nonce = STANDARD.encode(b"nonce");
+        let ciphertext = URL_SAFE_NO_PAD.encode(b"secret data");
+        let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
         let payload = json!({
             "ciphertext": ciphertext,
             "nonce": nonce,
@@ -198,8 +175,8 @@ mod tests {
         let router = app(pool);
 
         let large_data = vec![0u8; MAX_PAYLOAD_BYTES + 1];
-        let ciphertext = STANDARD.encode(&large_data);
-        let nonce = STANDARD.encode(b"nonce");
+        let ciphertext = URL_SAFE_NO_PAD.encode(&large_data);
+        let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
         let payload = json!({
             "ciphertext": ciphertext,
             "nonce": nonce
@@ -225,8 +202,8 @@ mod tests {
         let pool = setup_db().await;
         let router = app(pool);
 
-        let ciphertext = STANDARD.encode(b"secret data");
-        let nonce = STANDARD.encode(b"nonce");
+        let ciphertext = URL_SAFE_NO_PAD.encode(b"secret data");
+        let nonce = URL_SAFE_NO_PAD.encode(b"nonce");
         let payload = json!({
             "ciphertext": ciphertext,
             "nonce": nonce,
@@ -255,7 +232,7 @@ mod tests {
 
         let payload = json!({
             "ciphertext": "invalid_base64!",
-            "nonce": STANDARD.encode(b"nonce")
+            "nonce": URL_SAFE_NO_PAD.encode(b"nonce")
         });
 
         let response = router
@@ -280,7 +257,7 @@ mod tests {
 
         // Missing nonce
         let payload = json!({
-            "ciphertext": STANDARD.encode(b"secret")
+            "ciphertext": URL_SAFE_NO_PAD.encode(b"secret")
         });
 
         let response = router

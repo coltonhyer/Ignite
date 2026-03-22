@@ -27,14 +27,14 @@ async fn main() -> anyhow::Result<()> {
     migrate::run_migrations(&pool).await?;
 
     // Create application router
-    let app = router::create_router(pool.clone());
+    let app = router::create_router(ignite::store::SecretStore::new(pool.clone()));
 
     // Setup cancellation token for graceful shutdown
     let cancel_token = CancellationToken::new();
 
     // Spawn the expiry worker
     let worker_handle = tokio::spawn(workers::expiry::spawn_expiry_worker(
-        pool.clone(),
+        ignite::store::SecretStore::new(pool.clone()),
         cancel_token.clone(),
     ));
 

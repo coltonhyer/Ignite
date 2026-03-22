@@ -1,24 +1,19 @@
 use crate::error::AppError;
+use crate::store::SecretStore;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
-use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use tracing::info;
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize)]
-pub struct ReadSecretResponse {
-    pub ciphertext: String,
-    pub nonce: String,
-}
+use shared::ReadSecretResponse;
 
 pub async fn read_secret(
-    State(pool): State<SqlitePool>,
+    State(store): State<SecretStore>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     // 1. Validate UUID format
@@ -28,24 +23,17 @@ pub async fn read_secret(
 
     // 2. Execute atomic destructive read
     // The query returns `ciphertext` and `nonce` which are stored as BLOBs (Vec<u8> in Rust)
-    let result = sqlx::query!(
-        r#"
-        DELETE FROM secrets
-        WHERE id = ?1 AND expires_at > datetime('now')
-        RETURNING ciphertext, nonce
-        "#,
-        id
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e: sqlx::Error| AppError::Internal(anyhow::anyhow!(e)))?;
+    let result = store
+        .burn_secret(&id)
+        .await
+        .map_err(|e: sqlx::Error| AppError::Internal(anyhow::anyhow!(e)))?;
 
     // 3. Check if a row was returned
     match result {
         Some(row) => {
             // 4. Base64 encode the returned BLOBs
-            let ciphertext_b64 = STANDARD.encode(&row.ciphertext);
-            let nonce_b64 = STANDARD.encode(&row.nonce);
+            let ciphertext_b64 = URL_SAFE_NO_PAD.encode(&row.ciphertext);
+            let nonce_b64 = URL_SAFE_NO_PAD.encode(&row.nonce);
 
             // 5. Log the read operation at INFO level
             info!(
@@ -73,8 +61,9 @@ mod tests {
     use super::*;
     use axum::http::Request;
     use axum::{body::to_bytes, routing::delete, Router};
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
     use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::SqlitePool;
     use tower::ServiceExt;
 
     async fn setup_db() -> SqlitePool {
@@ -102,7 +91,7 @@ mod tests {
     fn app(pool: SqlitePool) -> Router {
         Router::new()
             .route("/api/secrets/{id}", delete(read_secret))
-            .with_state(pool)
+            .with_state(crate::store::SecretStore::new(pool))
     }
 
     #[tokio::test]
@@ -148,8 +137,8 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let json_body: ReadSecretResponse = serde_json::from_slice(&body).unwrap();
 
-        assert_eq!(json_body.ciphertext, STANDARD.encode(raw_ciphertext));
-        assert_eq!(json_body.nonce, STANDARD.encode(raw_nonce));
+        assert_eq!(json_body.ciphertext, URL_SAFE_NO_PAD.encode(raw_ciphertext));
+        assert_eq!(json_body.nonce, URL_SAFE_NO_PAD.encode(raw_nonce));
 
         // Second read - should return 404 NOT FOUND (SecretNotFound)
         let response_second = router
@@ -163,7 +152,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response_second.status(), StatusCode::NOT_FOUND);
+        assert_eq!(response_second.status(), StatusCode::GONE);
     }
 
     #[tokio::test]
@@ -220,6 +209,6 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(response.status(), StatusCode::GONE);
     }
 }

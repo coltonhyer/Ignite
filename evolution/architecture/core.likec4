@@ -1,0 +1,48 @@
+specification {
+  element actor
+  element system
+  element component
+}
+
+model {
+  actor user {
+    title "User"
+  }
+  
+  system ignite_vault {
+    title "Ignite Vault"
+    
+    component dioxus_spa {
+      title "Dioxus SPA Front-end"
+    }
+    
+    component axum_api {
+      title "Axum REST API"
+    }
+    
+    component secret_store {
+      title "SecretStore"
+    }
+    
+    component sqlite {
+      title "SQLite Database"
+    }
+    
+    component expiry_worker {
+      title "Background Expiry Worker"
+    }
+  }
+
+  user -> dioxus_spa "Interacts with"
+  dioxus_spa -> axum_api "Hits API via REST"
+  axum_api -> secret_store "Calls"
+  secret_store -> sqlite "Queries"
+  expiry_worker -> sqlite "Cleans up expired secrets"
+}
+
+views {
+  view index {
+    title "Ignite System Architecture"
+    include *
+  }
+}

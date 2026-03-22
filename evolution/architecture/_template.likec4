@@ -1,0 +1,11 @@
+specification {
+  // Define custom element kinds, relationship kinds, tags
+}
+
+model {
+  // Define architecture elements and relationships
+}
+
+views {
+  // Define views (diagrams)
+}

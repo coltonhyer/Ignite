@@ -1,8 +1,20 @@
 # 🔥 Ignite — Burn After Reading
 
+[![CI](https://github.com/coltonhyer/ignite/actions/workflows/main.yml/badge.svg)](https://github.com/coltonhyer/ignite/actions/workflows/main.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A secure, local-first secret sharing service where secrets are **permanently destroyed on first read**.
 
 Secrets are encrypted in your browser before they ever touch the server. The server stores only ciphertext and has **zero access to your plaintext** at any point. When a secret is read, it's atomically deleted from the database in the same operation — no race conditions, no second chances.
+
+## Agentic Engineering Journey
+
+This project served as my first attempt at making use of the new agentic engineering paradigm taking shape. I split my approach into two different workflows:
+
+*   **Backend (Handoff to Jules Agents):** I wrote the backend by handing small tasks to Jules agents to build out individual units. The advantage here was that it was incredibly easy to reign them in and keep them focused because I provided very narrow scopes for them to work within. However, because I was never looking directly at the code being generated, I never felt fully comfortable in the codebase.
+*   **Frontend (Pair Programming with Google Antigravity):** For the frontend, I switched to Google Antigravity and took a more hands-on pair programming approach. I worked alongside the agent to build out features, which allowed me to stay closer to the code and be heavily involved in testing and decision-making. The downside, however, was that being in the nitty-gritty led me to get locked into perfectionism. I found myself thinking that since I was using AI to help me, the bare minimum output needed to be absolute perfection.
+
+Upon finishing the project, I don't think I have found the "perfect" workflow yet for taking full advantage of the technical speedup that agents offer while consistently producing at a high quality. Fortunately, I can take the lessons learned from this dual approach and apply them to my next project, trying out new techniques along the way. In the meantime, I plan to continue applying agentic engineering to the evolution and maintenance of this project.
 
 ## How It Works
 
@@ -39,10 +51,11 @@ The decryption key lives in the URL fragment (`#`), which **browsers never send 
 ### Prerequisites
 
 - [Rust toolchain](https://rustup.rs/) (stable)
+- [Dioxus CLI](https://dioxuslabs.com/) (`cargo install dioxus-cli`)
 
 ### Run
 
-**1. Start the Backend Server (Required)**
+**1. Start the Backend Server**
 ```bash
 git clone https://github.com/coltonhyer/ignite.git
 cd ignite
@@ -50,8 +63,7 @@ cargo run
 ```
 Server starts at `http://localhost:3000` by default.
 
-**2. Launch the Client**
-Because the architecture is heavily isolated, you must build or launch your preferred client interface:
+**2. Launch a Client**
 
 * **Web Browser**: Run `dx build --release` inside the `frontend` directory, then navigate to `http://localhost:3000`.
 * **Native Desktop App**: Open a new terminal, navigate into the `frontend` directory, and run the macOS native binary:
@@ -70,11 +82,8 @@ Because the architecture is heavily isolated, you must build or launch your pref
 ### Test
 
 ```bash
-# Unit + integration tests
+# Run unit and integration tests
 cargo test
-
-# Concurrency stress test (100 simultaneous requests × 10 iterations)
-cargo test stress -- --nocapture
 ```
 
 ## API Reference
@@ -154,9 +163,17 @@ No separate SELECT + DELETE. No application-level locks. The database engine enf
 
 Exceeding the limit returns `429 Too Many Requests` with a `Retry-After` header.
 
-## Concurrency Test Results
+## Security Overview
 
-_Run `cargo test stress -- --nocapture` and paste results here after Phase 5._
+Ignite is built on several non-negotiable security invariants. All contributions are expected to uphold these strictly:
+1. **Atomic destructive reads:** Single `DELETE...RETURNING` operation for read.
+2. **Server-side blindness:** The server never logs, stores, or touches plaintext.
+3. **URL fragment isolation:** `#` fragments store decryption keys and never touch the backend.
+4. **Opaque Error handling:** Use strict HTTP responses to avoid leaking existence information via timing side channels.
+
+## Contributing
+
+We welcome community contributions! Please read our [Agent Operating Manual (AGENTS.md)](AGENTS.md) and review the architectural documents in the `evolution/foundations/` directory before submitting pull requests to ensure alignment with our core invariants.
 
 ## License
 

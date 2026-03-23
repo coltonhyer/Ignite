@@ -26,3 +26,6 @@ ignite.db*
 *.orig
 *.patch
 *.rej
+
+# AI Assistant Tools
+.claude/

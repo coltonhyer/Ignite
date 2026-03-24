@@ -30,7 +30,7 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
-        run: dx build --release
+        run: dx bundle --release --web
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3

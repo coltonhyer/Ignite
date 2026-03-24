@@ -4,7 +4,7 @@
   "compatibility_date": "2026-03-23",
   "main": "./src/worker.ts",
   "assets": {
-    "directory": "./dist",
+    "directory": "./dist/public",
     "not_found_handling": "single-page-application"
   }
 }

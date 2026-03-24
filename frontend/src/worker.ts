@@ -1,5 +1,6 @@
 interface Env {
   BACKEND_URL: string;
+  ASSETS: { fetch: (req: Request) => Promise<Response> };
 }
 
 export default {
@@ -14,8 +15,9 @@ export default {
       );
     }
 
-    // Static assets are served automatically by the assets config.
-    // If we get here, it means no static file matched and no API route matched.
-    return new Response("Not Found", { status: 404 });
+    // Hand off all other requests to the native Assets binding.
+    // Thanks to `not_found_handling: "single-page-application"` in wrangler.jsonc,
+    // this will properly serve the SPA index.html for unknown paths!
+    return env.ASSETS.fetch(request);
   },
 };

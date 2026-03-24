@@ -22,16 +22,11 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Cache Dioxus CLI
-        id: cache-dx
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/dx
-          key: dioxus-cli-${{ runner.os }}-${{ hashFiles('.github/workflows/deploy.yml') }}
+      - name: Install cargo-binstall
+        run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
       - name: Install Dioxus CLI
-        if: steps.cache-dx.outputs.cache-hit != 'true'
-        run: cargo install dioxus-cli --locked
+        run: cargo binstall -y dioxus-cli@0.7
 
       - name: Build frontend
         working-directory: frontend
@@ -44,3 +39,4 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: frontend
           command: deploy
+          wranglerVersion: '4'

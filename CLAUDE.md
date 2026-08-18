@@ -10,9 +10,9 @@ When reviewing PRs, enforce these in order of severity:
 
 ### 🔴 Critical — Block the PR
 
-- **Broken atomicity:** The burn handler (`GET /api/secrets/:id`) must use a single `DELETE...RETURNING` query. If you see a separate SELECT + DELETE, or an application-level lock wrapping two queries, block it. This is a correctness bug.
+- **Broken atomicity:** The burn handler (`DELETE /api/secrets/{id}`) must use a single `DELETE...RETURNING` query. If you see a separate SELECT + DELETE, or an application-level lock wrapping two queries, block it. This is a correctness bug.
 - **Plaintext leakage:** Any code that logs, stores, or transmits plaintext secrets, decryption keys, or raw payloads to the server. Check tracing calls, error messages, and debug output.
-- **Key sent to server:** Any JS code that includes `window.location.hash` in a fetch request, or any server-side code that reads/expects a fragment or key parameter.
+- **Key sent to server:** Any frontend code that includes the URL fragment in an API request, or any server-side code that reads or expects a fragment or key parameter.
 - **Missing error handling:** Handlers that return raw status codes or unwrap Results instead of using `AppError`.
 
 ### 🟡 Warning — Request changes

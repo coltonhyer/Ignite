@@ -1,6 +1,11 @@
 use crate::error::AppError;
 use crate::store::SecretStore;
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{
+    extract::{rejection::JsonRejection, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Json,
+};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, Utc};
 use tracing::info;
@@ -13,8 +18,11 @@ use shared::{
 
 pub async fn create_secret(
     State(store): State<SecretStore>,
-    Json(payload): Json<CreateSecretRequest>,
+    payload: Result<Json<CreateSecretRequest>, JsonRejection>,
 ) -> Result<impl IntoResponse, AppError> {
+    let Json(payload) =
+        payload.map_err(|_| AppError::InvalidRequest("Malformed JSON request".to_string()))?;
+
     // 1. Base64 decode ciphertext and nonce
     let ciphertext = URL_SAFE_NO_PAD.decode(&payload.ciphertext).map_err(|_| {
         AppError::InvalidRequest("Invalid base64 encoding for ciphertext".to_string())
@@ -251,7 +259,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_secret_missing_fields() {
+    async fn test_create_secret_missing_fields_returns_bad_request() {
         let pool = setup_db().await;
         let router = app(pool);
 
@@ -272,6 +280,13 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY); // axum returns 422 for missing fields
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json_body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            json_body,
+            json!({ "error": "Malformed JSON request", "code": "INVALID_REQUEST" })
+        );
     }
 }

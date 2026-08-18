@@ -39,19 +39,46 @@ mod tests {
             .await
             .expect("Failed to query secrets table");
 
-        // Verify the index exists
+        // Verify the expression index exists
         let index_exists: (bool,) = sqlx::query_as(
-            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_secrets_expires_at')"
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_secrets_expires_at_datetime')"
         )
         .fetch_one(&pool)
         .await
         .expect("Failed to check index existence");
 
-        assert!(index_exists.0, "Index idx_secrets_expires_at should exist");
+        assert!(
+            index_exists.0,
+            "Index idx_secrets_expires_at_datetime should exist"
+        );
 
         // Run migrations again to ensure idempotency
         run_migrations(&pool)
             .await
             .expect("Failed to run migrations a second time");
+    }
+
+    #[tokio::test]
+    async fn test_expiry_purge_uses_index() {
+        let pool = SqlitePoolOptions::new()
+            .connect("sqlite::memory:")
+            .await
+            .expect("Failed to connect to in-memory database");
+        run_migrations(&pool)
+            .await
+            .expect("Failed to run migrations");
+
+        let plan: Vec<(i64, i64, i64, String)> = sqlx::query_as(
+            "EXPLAIN QUERY PLAN DELETE FROM secrets WHERE datetime(expires_at) < datetime('now')",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("Failed to inspect purge query plan");
+
+        assert!(
+            plan.iter()
+                .any(|(_, _, _, detail)| detail.contains("USING INDEX")),
+            "Purge query must use an index: {plan:?}"
+        );
     }
 }

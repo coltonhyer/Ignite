@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(json_body.ciphertext, URL_SAFE_NO_PAD.encode(raw_ciphertext));
         assert_eq!(json_body.nonce, URL_SAFE_NO_PAD.encode(raw_nonce));
 
-        // Second read - should return 404 NOT FOUND (SecretNotFound)
+        // Second read - should return 410 Gone
         let response_second = router
             .oneshot(
                 Request::builder()

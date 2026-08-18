@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            DELETE FROM secrets\n            WHERE datetime(expires_at) < datetime('now')\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "4823868ba3059095b30f2ffb292e52976d870a9d78e7e802a197f2dfd4c417c3"
+}

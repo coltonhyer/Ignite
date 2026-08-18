@@ -1,180 +1,180 @@
-# 🔥 Ignite — Burn After Reading
+# Ignite — Burn After Reading
 
-[![CI](https://github.com/coltonhyer/ignite/actions/workflows/main.yml/badge.svg)](https://github.com/coltonhyer/ignite/actions/workflows/main.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/coltonhyer/Ignite/actions/workflows/main.yml/badge.svg)](https://github.com/coltonhyer/Ignite/actions/workflows/main.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A secure, local-first secret sharing service where secrets are **permanently destroyed on first read**.
+A server-blind secret-sharing application where encrypted messages are destroyed by the database during their first successful read.
 
-Secrets are encrypted in your browser before they ever touch the server. The server stores only ciphertext and has **zero access to your plaintext** at any point. When a secret is read, it's atomically deleted from the database in the same operation — no race conditions, no second chances.
+## Why this project is interesting
 
-## Agentic Engineering Journey
+- **The server cannot decrypt secrets.** AES-256-GCM encryption, decryption, and key handling stay in the client.
+- **Single-use is a database guarantee.** One `DELETE ... RETURNING` statement reads and destroys a secret atomically, including under concurrent requests.
+- **Keys never enter an HTTP request.** Share links carry the decryption key in the URL fragment (`#`), which browsers do not send to servers.
+- **Link previews cannot burn secrets.** Retrieval uses an explicit `DELETE` API call; there is no `GET` endpoint for secret data.
+- **The client is cross-platform Rust.** The Dioxus application targets browser WebAssembly and native desktop.
 
-This project served as my first attempt at making use of the new agentic engineering paradigm taking shape. I split my approach into two different workflows:
+## How it works
 
-*   **Backend (Handoff to Jules Agents):** I wrote the backend by handing small tasks to Jules agents to build out individual units. The advantage here was that it was incredibly easy to reign them in and keep them focused because I provided very narrow scopes for them to work within. However, because I was never looking directly at the code being generated, I never felt fully comfortable in the codebase.
-*   **Frontend (Pair Programming with Google Antigravity):** For the frontend, I switched to Google Antigravity and took a more hands-on pair programming approach. I worked alongside the agent to build out features, which allowed me to stay closer to the code and be heavily involved in testing and decision-making. The downside, however, was that being in the nitty-gritty led me to get locked into perfectionism. I found myself thinking that since I was using AI to help me, the bare minimum output needed to be absolute perfection.
+```mermaid
+sequenceDiagram
+    participant Sender as Sender client
+    participant API as Axum API
+    participant DB as SQLite
+    participant Recipient as Recipient client
 
-Upon finishing the project, I don't think I have found the "perfect" workflow yet for taking full advantage of the technical speedup that agents offer while consistently producing at a high quality. Fortunately, I can take the lessons learned from this dual approach and apply them to my next project, trying out new techniques along the way. In the meantime, I plan to continue applying agentic engineering to the evolution and maintenance of this project.
-
-## How It Works
-
-```
-Alice                          Server                         Bob
-  │                              │                              │
-  ├─ encrypt(secret) ───────────►│                              │
-  │  AES-256-GCM in browser      │◄── store ciphertext          │
-  │                              │                              │
-  ├─ build URL ──────────────────┤                              │
-  │  /s/{id}#Base64Key           │                              │
-  │                              │                              │
-  ├─ share URL via Slack/email ──┼──────────────────────────────►│
-  │                              │                              │
-  │                              │◄── GET /s/{id} (no key!) ────┤
-  │                              │    DELETE...RETURNING ────────►│
-  │                              │                              │
-  │                              │    (secret deleted forever)   ├─ decrypt with #fragment
-  │                              │                              │  AES-256-GCM in browser
-  │                              │                              ├─ read plaintext
+    Sender->>Sender: Generate key and encrypt with AES-256-GCM
+    Sender->>API: POST ciphertext, nonce, and TTL
+    API->>DB: INSERT encrypted secret
+    API-->>Sender: Return ID and expiration
+    Note over Sender,Recipient: Share /s/{id}#key<br/>The fragment stays client-side
+    Recipient->>API: DELETE /api/secrets/{id}
+    API->>DB: DELETE ... RETURNING ciphertext, nonce
+    DB-->>API: Return the row once
+    API-->>Recipient: Return ciphertext and nonce
+    Recipient->>Recipient: Decrypt with fragment key
 ```
 
-The decryption key lives in the URL fragment (`#`), which **browsers never send to the server**. The server is a blind courier.
+The core operation lives in [`SecretStore::burn_secret`](backend/src/store.rs):
 
-## Stack
+```sql
+DELETE FROM secrets
+WHERE id = ?1 AND datetime(expires_at) > datetime('now')
+RETURNING ciphertext, nonce
+```
 
-- **Backend:** Rust (Axum + Tokio)
-- **Database:** SQLite (WAL mode) via `sqlx`
-- **Frontend:** Vanilla HTML/JS + Tailwind CSS
-- **Encryption:** Client-side AES-256-GCM (Web Crypto API)
+There is no preceding `SELECT` and no application-level lock. SQLite decides which concurrent request receives the row; subsequent accepted burns receive `410 Gone`.
 
-## Quick Start
+## Security model
+
+| Boundary | Guarantee |
+|---|---|
+| Client | Holds plaintext and the AES-256-GCM key |
+| URL | Carries the key only after `#` |
+| API | Receives ciphertext, nonce, metadata, and secret ID |
+| Database | Stores ciphertext and nonce until burn or expiration |
+| Logs | Contain operational metadata, never payloads or keys |
+
+Secret lookup responses deliberately avoid existence disclosure:
+
+- `400 Bad Request` for malformed input.
+- `410 Gone` for missing, expired, or previously burned secrets.
+- `404 Not Found` is never used for secret lookups.
+
+Ignite is a portfolio project and has not received an external security audit.
+
+## Technology
+
+| Area | Stack |
+|---|---|
+| Backend | Rust, Axum, Tokio, SQLx |
+| Storage | SQLite in WAL mode |
+| Frontend | Rust, Dioxus 0.7, WebAssembly/desktop |
+| Cryptography | Web Crypto API in browsers; `aes-gcm` on desktop |
+| Abuse prevention | Per-route IP rate limiting with `tower_governor` |
+| Delivery | GitHub Actions; Cloudflare Workers static assets |
+
+## Repository map
+
+```text
+backend/                  Axum API, SQLite store, migrations, and integration tests
+frontend/                 Dioxus web/desktop client and client-side cryptography
+shared/                   Request/response types and validation limits
+evolution/foundations/    Architecture and security source of truth
+evolution/decisions/      Architecture decision records
+```
+
+## Run locally
 
 ### Prerequisites
 
-- [Rust toolchain](https://rustup.rs/) (stable)
-- [Dioxus CLI](https://dioxuslabs.com/) (`cargo install dioxus-cli`)
+- A stable [Rust toolchain](https://rustup.rs/).
+- The WebAssembly target and Dioxus CLI for browser development:
 
-### Run
-
-**1. Start the Backend Server**
 ```bash
-git clone https://github.com/coltonhyer/ignite.git
-cd ignite
-cargo run
+rustup target add wasm32-unknown-unknown
+cargo install dioxus-cli --version 0.7.3
 ```
-Server starts at `http://localhost:3000` by default.
 
-**2. Launch a Client**
+Native Linux builds also require the [Dioxus desktop system dependencies](https://dioxuslabs.com/learn/0.7/getting_started/#linux).
 
-* **Web Browser**: Run `dx build --release` inside the `frontend` directory, then navigate to `http://localhost:3000`.
-* **Native Desktop App**: Open a new terminal, navigate into the `frontend` directory, and run the macOS native binary:
-  ```bash
-  cd frontend
-  cargo run --bin frontend --features dioxus/desktop
-  ```
+### Browser client
+
+Start the API from the repository root:
+
+```bash
+cargo run -p ignite
+```
+
+In another terminal, start the Dioxus development server:
+
+```bash
+cd frontend
+dx serve --web
+```
+
+Open `http://localhost:8080`. The development server proxies `/api` requests to `http://localhost:3000`.
+
+### Desktop client
+
+With the API running, launch the native client from the repository root:
+
+```bash
+cargo run -p frontend
+```
 
 ### Configuration
 
-| Env Var        | Default         | Description             |
-|----------------|-----------------|-------------------------|
-| `PORT`         | `3000`          | HTTP server port        |
-| `DATABASE_URL` | `./ignite.db`   | SQLite database path    |
+| Environment variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | API listen port |
+| `DATABASE_URL` | `./ignite.db` | SQLite database path |
 
-### Test
+## Verification
+
+The main CI workflow runs:
 
 ```bash
-# Run unit and integration tests
-cargo test
+cargo check --all-targets
+cargo check -p frontend --target wasm32-unknown-unknown
+cargo clippy --all-targets -- -D warnings
+cargo fmt --all -- --check
+cargo test --all-targets
 ```
 
-## API Reference
+Tests worth reading:
 
-### `POST /api/secrets`
+- [`backend/tests/atomicity.rs`](backend/tests/atomicity.rs) exercises API semantics, rate limits, and concurrent destructive reads.
+- [`frontend/src/crypto.rs`](frontend/src/crypto.rs) covers encryption round trips and tamper/wrong-key failures.
+- [`backend/src/handlers/create.rs`](backend/src/handlers/create.rs) covers payload, TTL, encoding, and malformed-request validation.
 
-Create an encrypted secret.
+## API summary
 
-**Request:**
+| Method | Route | Purpose | Rate limit |
+|---|---|---|---|
+| `POST` | `/api/secrets` | Store an encrypted secret | 10 requests/minute/IP |
+| `DELETE` | `/api/secrets/{id}` | Atomically retrieve and destroy | 30 requests/minute/IP |
+| `GET` | `/health` | Check API and database health | — |
+
+`POST /api/secrets` accepts:
+
 ```json
 {
-  "ciphertext": "<base64-encoded>",
-  "nonce": "<base64-encoded>",
+  "ciphertext": "<base64url-encoded>",
+  "nonce": "<base64url-encoded>",
   "ttl_seconds": 3600
 }
 ```
 
-| Field          | Type   | Required | Default | Constraints          |
-|----------------|--------|----------|---------|----------------------|
-| `ciphertext`   | string | yes      | —       | ≤ 10KB after decode  |
-| `nonce`        | string | yes      | —       | Base64-encoded       |
-| `ttl_seconds`  | number | no       | 3600    | 300–86400            |
+Ciphertext is limited to 10 KiB after decoding. TTL must be between 300 seconds and 86,400 seconds; the default is 3,600 seconds.
 
-**Response (201):**
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "expires_at": "2026-03-01T22:00:00Z"
-}
-```
+## Agent-assisted engineering
 
-### `GET /api/secrets/:id`
+Ignite was built as an experiment in two agent-assisted workflows: narrowly delegated backend tasks and hands-on pair programming for the frontend. The useful lesson was not that agents remove the need for review; it was that explicit invariants, small scopes, executable checks, and close feedback make their speed safe to use.
 
-Retrieve and **permanently destroy** a secret.
+That lesson is captured in [`AGENTS.md`](AGENTS.md), the [`evolution/foundations/`](evolution/foundations/) documents, and CI checks that protect the security boundary.
 
-**Response (200):**
-```json
-{
-  "ciphertext": "<base64-encoded>",
-  "nonce": "<base64-encoded>"
-}
-```
+## Contributing and security
 
-| Status | Meaning                            |
-|--------|------------------------------------|
-| 200    | Secret retrieved (now destroyed)   |
-| 400    | Invalid UUID format                |
-| 410    | Already burned or expired          |
-| 429    | Rate limited                       |
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before making changes. Report vulnerabilities privately according to [`SECURITY.md`](SECURITY.md).
 
-### `GET /health`
-
-```json
-{ "status": "ok", "db": "connected" }
-```
-
-## The Atomic Strategy
-
-The core guarantee is that a secret can only ever be read once, even under high concurrency:
-
-```sql
-DELETE FROM secrets
-WHERE id = ?1 AND expires_at > datetime('now')
-RETURNING ciphertext, nonce
-```
-
-This single SQL statement atomically reads and deletes in one operation. SQLite's locking model ensures that if 100 requests arrive simultaneously for the same secret, **exactly one** gets the data — the rest get 410 Gone.
-
-No separate SELECT + DELETE. No application-level locks. The database engine enforces the invariant.
-
-## Rate Limits
-
-| Endpoint            | Limit          |
-|---------------------|----------------|
-| `POST /api/secrets` | 10 req/min/IP  |
-| `GET /api/secrets/` | 30 req/min/IP  |
-
-Exceeding the limit returns `429 Too Many Requests` with a `Retry-After` header.
-
-## Security Overview
-
-Ignite is built on several non-negotiable security invariants. All contributions are expected to uphold these strictly:
-1. **Atomic destructive reads:** Single `DELETE...RETURNING` operation for read.
-2. **Server-side blindness:** The server never logs, stores, or touches plaintext.
-3. **URL fragment isolation:** `#` fragments store decryption keys and never touch the backend.
-4. **Opaque Error handling:** Use strict HTTP responses to avoid leaking existence information via timing side channels.
-
-## Contributing
-
-We welcome community contributions! Please read our [Agent Operating Manual (AGENTS.md)](AGENTS.md) and review the architectural documents in the `evolution/foundations/` directory before submitting pull requests to ensure alignment with our core invariants.
-
-## License
-
-[MIT](LICENSE)
+Licensed under the [MIT License](LICENSE).

@@ -49,7 +49,7 @@ impl SecretStore {
         let result = sqlx::query!(
             r#"
             DELETE FROM secrets
-            WHERE id = ?1 AND expires_at > datetime('now')
+            WHERE id = ?1 AND datetime(expires_at) > datetime('now')
             RETURNING ciphertext, nonce
             "#,
             id
@@ -67,7 +67,7 @@ impl SecretStore {
         let result = sqlx::query!(
             r#"
             DELETE FROM secrets
-            WHERE expires_at < datetime('now')
+            WHERE datetime(expires_at) < datetime('now')
             "#
         )
         .execute(&self.pool)

@@ -11,7 +11,6 @@ pub async fn init_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
         .journal_mode(SqliteJournalMode::Wal)
         .create_if_missing(true);
 
-    // TODO: Configure pool settings like max_connections, idle_timeout, etc.
     let pool = SqlitePool::connect_with(options).await?;
 
     Ok(pool)

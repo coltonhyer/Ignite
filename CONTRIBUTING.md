@@ -1,23 +1,25 @@
 # Contributing to Ignite
 
-We love your input! We want to make contributing to this project as easy and transparent as possible.
-
-## The Agent Operating Manual
-
-Ignite was built utilizing an agentic engineering workflow. Before you dive into the code, you **must** read our [Agent Operating Manual (AGENTS.md)](AGENTS.md). 
-
-`AGENTS.md` is the single source of truth for understanding the system architecture, design decisions, and core invariants of this project.
+Before changing code, read the [agent operating manual](AGENTS.md) and the architecture source of truth in [`evolution/foundations/`](evolution/foundations/).
 
 ## Non-Negotiable Security Invariants
 
-All contributions must strictly uphold the following invariants (as detailed in `AGENTS.md`):
-1. **Atomic destructive reads:** Single `DELETE...RETURNING` operation for read. No exceptions.
-2. **Server-side blindness:** The server never logs, stores, or touches plaintext.
-3. **URL fragment isolation:** `#` fragments store decryption keys and never touch the backend.
-4. **Opaque Error handling:** Use strict HTTP responses to avoid leaking existence information via timing side channels.
+All contributions must uphold these invariants:
+
+1. **Atomic destructive reads:** Read and destroy with one `DELETE ... RETURNING` statement. Never split it into `SELECT` and `DELETE`.
+2. **Server-side blindness:** The server never receives plaintext secrets or decryption keys.
+3. **URL fragment isolation:** Decryption keys remain in the URL fragment and are never sent to the backend.
+4. **Error semantics:** Return `400` for malformed input and `410` for missing, expired, or burned secrets. Never return `404` for secret lookups.
+5. **Safe logging:** Never log plaintext, ciphertext, nonces, keys, or secret payloads.
 
 ## Pull Requests
 
-1. **Fork the repository** and create your branch from `main`.
-2. **Ensure tests pass** before submitting. Your PR will run through our automated CI pipeline (`cargo test`, `cargo clippy`, and `cargo fmt`). 
-3. **Fill out the Pull Request Template**, paying special attention to the security invariant checklist.
+Before opening a pull request, run:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --all-targets
+```
+
+Then complete the pull request template, including its security checklist.

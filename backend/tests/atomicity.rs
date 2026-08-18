@@ -106,7 +106,7 @@ async fn test_case_1_happy_path() {
     assert_eq!(read_json.ciphertext, ciphertext);
     assert_eq!(read_json.nonce, nonce);
 
-    // Read again - assert 404 Not Found
+    // Read again - assert 410 Gone
     let req = Request::builder()
         .method("DELETE")
         .uri(format!("/api/secrets/{}", secret_id))
@@ -354,4 +354,66 @@ async fn test_case_9_rate_limit_delete() {
         .parse()
         .expect("Retry-After must be numeric");
     assert!(retry_secs > 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn test_concurrent_burn_returns_secret_exactly_once() {
+    let temp_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
+    let database_url = format!("sqlite:{}", temp_file.path().to_str().unwrap());
+    let pool = ignite::db::init_pool(&database_url)
+        .await
+        .expect("Failed to initialize pool");
+    ignite::migrate::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    let store = ignite::store::SecretStore::new(pool);
+    let id = Uuid::new_v4().to_string();
+    let expires_at = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+    store
+        .create_secret(&id, b"ciphertext", b"nonce", &expires_at)
+        .await
+        .expect("Failed to create secret");
+
+    let mut burns = Vec::new();
+    for _ in 0..32 {
+        let store = store.clone();
+        let id = id.clone();
+        burns.push(tokio::spawn(async move {
+            store
+                .burn_secret(&id)
+                .await
+                .expect("Burn query failed")
+                .is_some()
+        }));
+    }
+
+    let mut successful_burns = 0;
+    for burn in burns {
+        successful_burns += usize::from(burn.await.expect("Burn task failed"));
+    }
+
+    assert_eq!(successful_burns, 1);
+}
+
+#[tokio::test]
+async fn test_rfc3339_expired_secret_is_gone_and_purged() {
+    let (_, pool) = setup_app().await;
+    let store = ignite::store::SecretStore::new(pool);
+    let id = Uuid::new_v4().to_string();
+    let expires_at = chrono::Utc::now()
+        .format("%Y-%m-%dT00:00:00+00:00")
+        .to_string();
+
+    store
+        .create_secret(&id, b"ciphertext", b"nonce", &expires_at)
+        .await
+        .expect("Failed to create expired secret");
+
+    assert!(store
+        .burn_secret(&id)
+        .await
+        .expect("Burn query failed")
+        .is_none());
+    assert_eq!(store.purge_expired().await.expect("Purge query failed"), 1);
 }
